@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Original head content remains the same -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rushita - Viewer</title>
+  <!-- Tailwind CSS from CDN -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <!-- Font Awesome from CDN -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <!-- PDF.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    /* Original styles remain the same */
+    #pdf-loader {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    canvas {
+      display: block;
+      margin: 0 auto;
+      border: 1px solid #ddd;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 100%;
+    }
+    
+    #pdf-pagination {
+      text-align: center;
+      margin: 10px 0;
+      padding: 5px 10px;
+      background-color: #f8f9fa;
+      border-radius: 20px;
+    }
+    
+    .pill-button {
+      border-radius: 20px;
+      transition: all 0.3s ease;
+    }
+    
+    .control-button {
+      transition: all 0.2s ease;
+    }
+    
+    .control-button:active {
+      transform: scale(0.95);
+    }
+
+    @font-face {
+      font-family: 'logof';
+      src: url(./font/Signatrue.ttf);
+    }
+
+    .logo{
+      font-family: 'logof';
+    }
+
+    @media (max-width: 1024px) {
+      .main-content {
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 640px) {
+      #pdf-controls {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      #pdf-controls > * {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+  <header class="bg-blue-700 text-white p-4 shadow-lg">
+    <div class="container mx-auto flex justify-between items-center">
+      <div class="flex items-center">
+        <h1 class="text-3xl logo">
+          Rushita
+        </h1>
+      </div>
+      <div class="flex space-x-2">
+        <button id="download-btn" class="bg-white text-blue-700 px-4 py-2 rounded-md shadow-sm hover:bg-blue-50 transition-colors flex items-center pill-button">
+          <i class="fas fa-download mr-2"></i> Download
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Changed main content to use flex layout for desktop -->
+  <main class="container mx-auto p-4 mt-6 max-w-6xl">
+    <!-- Use flex to position content side by side on desktop, column on mobile -->
+    <div class="main-content flex flex-col lg:flex-row gap-6">
+      <!-- PDF Viewer Section (Left on desktop) -->
+      <div class="bg-white rounded-lg shadow-md p-6 lg:w-2/3">
+        <!-- Loading State -->
+        <div id="pdf-initial-loader" class="py-12 text-center">
+          <i class="fas fa-file-prescription text-blue-600 text-5xl mb-4"></i>
+          <h2 class="text-xl font-semibold mb-2">Loading Prescription...</h2>
+          <p class="text-gray-600">Please wait while we retrieve your prescription document.</p>
+        </div>
+        
+        <!-- PDF Controls -->
+        <div id="pdf-controls" class="flex justify-center space-x-4 mb-6 flex-wrap sm:flex-nowrap mt-6">
+          <button id="prev-page" class="bg-blue-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-700 transition-colors flex items-center control-button">
+            <i class="fas fa-chevron-left mr-2"></i> Previous
+          </button>
+          <div id="pdf-pagination" class="flex items-center bg-gray-100 px-4 py-2">
+            <span class="mr-2">Page</span>
+            <span id="page-num" class="font-medium">0</span>
+            <span class="mx-1">/</span>
+            <span id="page-count" class="font-medium">0</span>
+          </div>
+          <button id="next-page" class="bg-blue-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-700 transition-colors flex items-center control-button">
+            Next <i class="fas fa-chevron-right ml-2"></i>
+          </button>
+          <div class="flex space-x-2 ml-2">
+            <button id="zoom-out" class="bg-gray-200 text-gray-800 h-10 w-10 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-300 transition-colors control-button">
+              <i class="fas fa-search-minus"></i>
+            </button>
+            <button id="zoom-in" class="bg-gray-200 text-gray-800 h-10 w-10 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-300 transition-colors control-button">
+              <i class="fas fa-search-plus"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- PDF Loader -->
+        <div id="pdf-loader" class="py-6">
+          <i class="fas fa-spinner fa-spin text-blue-600 text-3xl"></i>
+          <p class="mt-2 text-gray-600">Loading page...</p>
+        </div>
+
+        <!-- PDF Viewer -->
+        <div id="pdf-viewport" class="flex justify-center">
+          <canvas id="pdf-render"></canvas>
+        </div>
+
+        <!-- PDF Error -->
+        <div id="pdf-error" class="hidden bg-red-100 border-l-4 border-red-500 p-4 mt-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <i class="fas fa-exclamation-triangle text-red-500"></i>
+            </div>
+            <div class="ml-3">
+              <p class="text-red-700">Error loading prescription. Please try again later or contact support.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Prescription Details Section (Right on desktop) -->
+      <div class="bg-white rounded-lg shadow-md p-6 lg:w-1/3">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+          <i class="fas fa-info-circle mr-2 text-blue-600"></i> Prescription Information
+        </h2>
+        <div class="grid grid-cols-1 gap-4">
+          <div class="bg-gray-50 p-3 rounded-md">
+            <p class="text-sm text-gray-500">Document ID</p>
+            <p id="rx-id" class="font-medium">Loading...</p>
+          </div>
+          <div class="bg-gray-50 p-3 rounded-md">
+            <p class="text-sm text-gray-500">Date Issued</p>
+            <p id="rx-date" class="font-medium">Loading...</p>
+          </div>
+          
+          <div class="bg-gray-50 p-3 rounded-md">
+            <p class="text-sm text-gray-500">Status</p>
+            <p class="font-medium text-green-600">Active</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-gray-800 text-white p-4 mt-8">
+    <div class="container mx-auto text-center">
+      <p>&copy; 2025 Rushita Platform. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript remains unchanged -->
+  <script>
+    // Initialize PDF.js
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+    // Variables
+    let pdfDoc = null;
+    let pageNum = 1;
+    let pageRendering = false;
+    let pageNumPending = null;
+    let scale = 1.5; // Increased default scale for better readability
+    let canvas = document.getElementById('pdf-render');
+    let ctx = canvas.getContext('2d');
+    
+    // Base URL
+    const baseUrl = 'https://wyypjyfyldeqnzvylsmt.supabase.co/storage/v1/object/public/pdfs//';
+
+    // Extract PDF URL from query parameter
+    function getPdfUrlFromQueryParam() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const rxParam = urlParams.get('rx');
+      
+      if (rxParam) {
+        return baseUrl + rxParam;
+      }
+      return null;
+    }
+
+    // Parse Rx ID from URL
+    function parseRxId(url) {
+      if (!url) return 'Unknown';
+      const parts = url.split('/');
+      return parts[parts.length - 1].split('.')[0];
+    }
+
+    // Elements
+    const pdfInitialLoader = document.getElementById('pdf-initial-loader');
+    const pdfLoader = document.getElementById('pdf-loader');
+    const pdfError = document.getElementById('pdf-error');
+    const prevPage = document.getElementById('prev-page');
+    const nextPage = document.getElementById('next-page');
+    const pageNum_ = document.getElementById('page-num');
+    const pageCount = document.getElementById('page-count');
+    const downloadBtn = document.getElementById('download-btn');
+    const zoomIn = document.getElementById('zoom-in');
+    const zoomOut = document.getElementById('zoom-out');
+    const rxId = document.getElementById('rx-id');
+    const rxDate = document.getElementById('rx-date');
+    const pdfControls = document.getElementById('pdf-controls');
+
+    // Initially hide controls until PDF is loaded
+    pdfControls.style.display = 'none';
+
+    // Render the page
+    function renderPage(num) {
+      pageRendering = true;
+      
+      // Show loader
+      pdfLoader.style.display = 'block';
+      
+      // Using promise to fetch the page
+      pdfDoc.getPage(num).then(function(page) {
+        const viewport = page.getViewport({ scale: scale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        // Render PDF page into canvas context
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+        
+        const renderTask = page.render(renderContext);
+        
+        // Wait for rendering to finish
+        renderTask.promise.then(function() {
+          pageRendering = false;
+          pdfLoader.style.display = 'none';
+          
+          if (pageNumPending !== null) {
+            // New page rendering is pending
+            renderPage(pageNumPending);
+            pageNumPending = null;
+          }
+        });
+      }).catch(function(error) {
+        console.error('Error rendering page:', error);
+        pdfLoader.style.display = 'none';
+        pdfError.style.display = 'block';
+      });
+      
+      // Update page counters
+      pageNum_.textContent = num;
+    }
+
+    // Go to previous page
+    function goPrevPage() {
+      if (pageNum <= 1) {
+        return;
+      }
+      pageNum--;
+      queueRenderPage(pageNum);
+    }
+
+    // Go to next page
+    function goNextPage() {
+      if (pageNum >= pdfDoc.numPages) {
+        return;
+      }
+      pageNum++;
+      queueRenderPage(pageNum);
+    }
+
+    // Queue rendering of the page
+    function queueRenderPage(num) {
+      if (pageRendering) {
+        pageNumPending = num;
+      } else {
+        renderPage(num);
+      }
+    }
+
+    // Format current date
+    function getCurrentDateFormatted() {
+      const now = new Date();
+      return now.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+
+    // Load PDF
+    function loadPDF(url) {
+      // Reset
+      pdfDoc = null;
+      pageNum = 1;
+      pageNumPending = null;
+      
+      // Hide initial loader, show page loader
+      pdfInitialLoader.style.display = 'none';
+      pdfLoader.style.display = 'block';
+      pdfError.style.display = 'none';
+      
+      // Update prescription info
+      rxId.textContent = parseRxId(url);
+      rxDate.textContent = getCurrentDateFormatted();
+      
+      // Asynchronously download PDF
+      pdfjsLib.getDocument(url).promise.then(function(pdfDoc_) {
+        pdfDoc = pdfDoc_;
+        pageCount.textContent = pdfDoc.numPages;
+        
+        // Show controls once PDF is loaded
+        pdfControls.style.display = 'flex';
+        
+        // Initial render
+        renderPage(pageNum);
+        
+        // Update download button
+        downloadBtn.onclick = function() {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = url.split('/').pop();
+          a.target = '_blank';
+          a.click();
+        };
+      }).catch(function(error) {
+        console.error('Error loading PDF:', error);
+        pdfLoader.style.display = 'none';
+        pdfInitialLoader.style.display = 'none';
+        pdfError.style.display = 'block';
+      });
+    }
+
+    // Event listeners
+    prevPage.addEventListener('click', goPrevPage);
+    nextPage.addEventListener('click', goNextPage);
+
+    // Zoom in
+    zoomIn.addEventListener('click', function() {
+      scale += 0.25;
+      queueRenderPage(pageNum);
+    });
+
+    // Zoom out
+    zoomOut.addEventListener('click', function() {
+      if (scale <= 0.5) return;
+      scale -= 0.25;
+      queueRenderPage(pageNum);
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        goNextPage();
+      } else if (e.key === 'ArrowLeft') {
+        goPrevPage();
+      }
+    });
+
+    // Load PDF from URL parameter on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      const pdfUrl = getPdfUrlFromQueryParam();
+      
+      if (pdfUrl) {
+        loadPDF(pdfUrl);
+      } else {
+        // If no URL parameter, show error
+        pdfInitialLoader.style.display = 'none';
+        pdfError.style.display = 'block';
+        document.querySelector('#pdf-error p').textContent = 
+          'No prescription specified. Please check the URL and try again.';
+      }
+    });
+  </script>
+</body>
+</html>
